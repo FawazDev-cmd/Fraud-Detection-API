@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from app.ml.model_loader import load_model
+from app.api.routes import router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -14,3 +15,5 @@ app= FastAPI(lifespan=lifespan)
 def health_check():
     model_loaded= getattr(app.state, "model", None) is not None
     return {"status": "healthy" if model_loaded else "unhealthy", "model_loaded": model_loaded}
+
+app.include_router(router)
