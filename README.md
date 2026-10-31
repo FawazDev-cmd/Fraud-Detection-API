@@ -1,331 +1,138 @@
-Fraud Detection API
+# Fraud Detection API
 
-A machine learning-powered REST API for detecting potentially fraudulent credit card transactions. Built with Python, FastAPI, and scikit-learn, the API returns a fraud probability and classifies transactions using a configurable decision threshold.
+A scikit-learn logistic regression pipeline served through FastAPI. Submit 30 transaction features to receive an estimated fraud probability, a threshold-based classification, and the threshold used.
 
-Live API: https://fraud-detection-api-rhn7.ontender.com
-Interactive API Documentation: https://fraud-detection-api-rhn7.ontender.com/docs
+This portfolio project demonstrates startup model loading, strict input validation, probability checks, automated tests, Docker packaging, and CI. It is not a validated financial decision system.
 
-Overview
+## Features
 
-Credit card fraud detection is a challenging classification problem because fraudulent transactions represent only a small fraction of total transactions.
+- Loads `artifacts/fraud_pipeline.joblib` at application startup and reuses it for inference.
+- Accepts `Time`, `V1` through `V28`, and `Amount`.
+- Rejects missing or additional fields, non-finite inputs, and negative amounts.
+- Checks that predicted probabilities are finite and between 0 and 1.
+- Classifies transactions using `FRAUD_THRESHOLD` (default `0.5`).
+- Exposes process/model health and interactive FastAPI documentation.
 
-This project packages a trained machine learning pipeline behind a REST API, allowing clients to submit transaction features and receive fraud predictions.
+## Architecture
 
-The project demonstrates practical machine learning deployment, API design, input validation, automated testing, containerization, continuous integration, and cloud deployment.
+Routes pass validated features to the prediction service, which creates a pandas DataFrame in the expected feature order and calls the loaded model.
 
-Features
+| Component | Location | Responsibility |
+| --- | --- | --- |
+| Application | `app/main.py` | Startup, model state, and health endpoint |
+| HTTP boundary | `app/api/` | Request/response schemas and prediction route |
+| Prediction | `app/services/prediction_service.py` | Inference, probability validation, and classification |
+| Model loading | `app/ml/model_loader.py` | Load the serialized pipeline |
+| Configuration | `app/core/config.py` | Read the decision threshold |
+| Model artifact | `artifacts/fraud_pipeline.joblib` | Serialized scikit-learn pipeline |
+| Quality | `tests/`, `.github/workflows/tests.yml` | Automated checks and CI |
 
-- Fraud prediction: Returns the estimated probability that a transaction is fraudulent.
-- Configurable threshold: Classifies transactions using an environment-configurable decision threshold.
-- Input validation: Rejects missing features, unexpected fields, non-finite numeric values, and negative transaction amounts.
-- Model output validation: Rejects invalid probability values returned by the model.
-- Health endpoint: Reports application health and whether the model is loaded.
-- Interactive API documentation: Provides Swagger UI for exploring and testing endpoints.
-- Automated testing: Tests API behavior, input validation, prediction logic, and model loading.
-- Continuous integration: Runs automated tests through GitHub Actions on pushes and pull requests targeting "main".
-- Docker support: Packages the application and trained model into a container.
-- Cloud deployment: Hosted on Render with a publicly accessible HTTPS endpoint.
+Python 3.13 · FastAPI · Pydantic · scikit-learn · pandas · Joblib · uv · pytest · Docker · GitHub Actions
 
-Technology Stack
+## Model evaluation and evidence
 
-- Python 3.13
-- FastAPI
-- Pydantic
-- scikit-learn
-- Pandas
-- Joblib
-- Uvicorn
-- uv
-- pytest
-- Docker
-- GitHub Actions
-- Render
+The previously recorded offline evaluation describes a source dataset of 284,807 transactions, including 492 fraud cases, and reports:
 
-Architecture
+| Metric | Previously reported result |
+| --- | --- |
+| ROC-AUC | 0.972 |
+| Average precision | 0.719 |
+| Fraud recall | Approximately 91% |
 
-The application separates HTTP handling, input validation, prediction logic, configuration, and model loading.
+These are historical reported results, not a fresh evaluation or live-service measurements. The repository contains the inference artifact and API but no training script, evaluation dataset, or reproducible evaluation report establishing the split, random seed, preprocessing fit boundary, and recall threshold. Treat the numbers as provisional until that evidence is published. The source dataset size does not establish the size of the training partition.
 
-Client
-  |
-  v
-FastAPI Application
-  |
-  v
-API Routes
-  |
-  v
-Pydantic Input Validation
-  |
-  v
-Prediction Service
-  |
-  v
-Trained scikit-learn Pipeline
-  |
-  v
-Fraud Probability and Classification
+Recall must be interpreted alongside precision, false positives, and the decision threshold. The API defaults to `0.5`; the threshold used for the reported recall is not documented. A probability estimate does not by itself establish calibration.
 
-The trained model is loaded during application startup and reused for prediction requests.
+## Local setup
 
-Project Structure
+Requirements: Python 3.13, uv, and Git.
 
-Fraud-Detection-API/
-├── app/
-│   ├── api/
-│   │   ├── routes.py
-│   │   └── schemas.py
-│   ├── core/
-│   │   └── config.py
-│   ├── ml/
-│   │   └── model_loader.py
-│   ├── services/
-│   │   └── prediction_service.py
-│   └── main.py
-├── artifacts/
-│   └── fraud_pipeline.joblib
-├── tests/
-├── .github/
-│   └── workflows/
-│       └── tests.yml
-├── Dockerfile
-├── .dockerignore
-├── .gitignore
-├── pyproject.toml
-└── uv.lock
-
-Model
-
-The project uses a trained scikit-learn pipeline containing preprocessing steps and a logistic regression classifier.
-
-The model was trained using a credit card transaction dataset containing 284,807 transactions, including 492 fraudulent transactions.
-
-Because fraud is rare in this dataset, accuracy alone is not sufficient to evaluate the model.
-
-Recorded Evaluation Results
-
-Metric| Result
-ROC-AUC| 0.972
-Average Precision| 0.719
-Fraud Recall| Approximately 91%
-
-These results come from offline model evaluation, not measurements of live production performance.
-
-The decision threshold affects the balance between detecting fraudulent transactions and generating false positives. The threshold can be configured through an environment variable.
-
-Live Deployment
-
-The API is deployed on Render using Docker.
-
-Base URL: https://fraud-detection-api-rhn7.ontender.com
-
-Available Endpoints
-
-Method| Endpoint| Description
-"GET"| "/health"| Checks application health and model loading.
-"POST"| "/predict"| Predicts the probability that a transaction is fraudulent.
-"GET"| "/docs"| Opens interactive Swagger documentation.
-"GET"| "/openapi.json"| Returns the OpenAPI specification.
-
-Health Check
-
-Request:
-
-GET /health
-
-Example response:
-
-{
-  "status": "healthy",
-  "model_loaded": true
-}
-
-Predict a Transaction
-
-Request:
-
-POST /predict
-Content-Type: application/json
-
-The request must contain 30 numeric features:
-
-- "Time"
-- "V1" through "V28"
-- "Amount"
-
-Example request:
-
-{
-  "Time": 0,
-  "V1": 0,
-  "V2": 0,
-  "V3": 0,
-  "V4": 0,
-  "V5": 0,
-  "V6": 0,
-  "V7": 0,
-  "V8": 0,
-  "V9": 0,
-  "V10": 0,
-  "V11": 0,
-  "V12": 0,
-  "V13": 0,
-  "V14": 0,
-  "V15": 0,
-  "V16": 0,
-  "V17": 0,
-  "V18": 0,
-  "V19": 0,
-  "V20": 0,
-  "V21": 0,
-  "V22": 0,
-  "V23": 0,
-  "V24": 0,
-  "V25": 0,
-  "V26": 0,
-  "V27": 0,
-  "V28": 0,
-  "Amount": 0
-}
-
-Example response:
-
-{
-  "fraud_probability": 0.015188991881560884,
-  "is_fraud": false,
-  "threshold": 0.5
-}
-
-This example was returned by the deployed API during smoke testing. The zero-valued input is intended to demonstrate API integration, not represent a realistic transaction.
-
-Response Fields
-
-Field| Description
-"fraud_probability"| The model's estimated probability of fraud, between 0 and 1.
-"is_fraud"| Whether the estimated probability meets or exceeds the configured threshold.
-"threshold"| The decision threshold used for classification.
-
-Try the API
-
-Open the interactive documentation:
-
-https://fraud-detection-api-rhn7.ontender.com/docs
-
-Expand "POST /predict", select Try it out, enter a request body, and click Execute to inspect the response.
-
-Local Development
-
-Prerequisites
-
-- Python 3.13
-- uv
-- Git
-- Docker (optional, for containerized execution)
-
-1. Clone the Repository
-
+```sh
 git clone https://github.com/FawazDev-cmd/Fraud-Detection-API.git
 cd Fraud-Detection-API
-
-2. Install Dependencies
-
 uv sync --locked
-
-3. Configure the Environment
-
-Create a ".env" file in the project root:
-
-FRAUD_THRESHOLD=0.5
-
-The application defaults to a threshold of "0.5" if the environment variable is not provided.
-
-Keep environment files out of version control.
-
-4. Start the API
-
 uv run uvicorn app.main:app --reload
+```
 
-The local API will be available at:
+Open [interactive API documentation](http://127.0.0.1:8000/docs).
 
-http://127.0.0.1:8000
+Optionally create a local `.env` file:
 
-Interactive documentation:
+```dotenv
+FRAUD_THRESHOLD=0.5
+```
 
-http://127.0.0.1:8000/docs
+Use a finite value between 0 and 1. Changing it alters the classification trade-off; it does not retrain the model. The current configuration parses a float but does not enforce those bounds, so operators must validate the setting before startup.
 
-Input Validation and Error Handling
+## API
 
-The API validates incoming transaction data before prediction.
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Process health and model-loading status |
+| POST | `/predict` | Fraud probability and classification |
+| GET | `/docs` | Interactive Swagger documentation |
+| GET | `/openapi.json` | OpenAPI schema |
 
-Invalid requests include:
+```sh
+curl http://127.0.0.1:8000/health
+```
 
-- Missing required features.
-- Unexpected additional fields.
-- Non-finite numeric values, such as "NaN" or infinity.
-- Negative transaction amounts.
+Submit a complete synthetic example using Python's standard library:
 
-Invalid request payloads return HTTP "422 Unprocessable Entity".
+```python
+import json
+from urllib.request import Request, urlopen
 
-Unexpected errors during prediction return HTTP "500 Internal Server Error".
+transaction = {"Time": 0, **{f"V{i}": 0 for i in range(1, 29)}, "Amount": 0}
+request = Request(
+    "http://127.0.0.1:8000/predict",
+    data=json.dumps(transaction).encode(),
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+with urlopen(request, timeout=10) as response:
+    print(json.load(response))
+```
 
-Testing
+The all-zero transaction demonstrates the contract, not realistic fraud evidence. Clients must supply the expected transformed `V1`–`V28` features; arbitrary raw transaction fields are not interchangeable with this schema.
 
-Run the complete test suite:
+| Response field | Meaning |
+| --- | --- |
+| `fraud_probability` | Estimated probability between 0 and 1 |
+| `is_fraud` | Whether the estimate meets or exceeds the threshold |
+| `threshold` | Configured decision threshold |
 
+Invalid request payloads return HTTP 422. Unexpected prediction failures return HTTP 500.
+
+## Tests and CI
+
+```sh
 uv run python -m pytest -v
+```
 
-The test suite covers input schemas, API validation, prediction responses, threshold classification, invalid model probabilities, and model-loading failures.
+Tests cover health, schemas, input validation, prediction behaviour, invalid model probabilities, and model-loading failures. GitHub Actions runs the suite on pushes and pull requests targeting `main`. These API tests do not establish model quality or real-world fraud prevention.
 
-Continuous Integration
+## Docker
 
-GitHub Actions runs the test suite on pushes and pull requests targeting "main".
-
-Workflow file:
-
-.github/workflows/tests.yml
-
-This helps catch regressions before changes are merged or deployed.
-
-Docker
-
-Docker packages the API, its dependencies, and the trained model into a container.
-
-Build the Image
-
-Run from the project root:
-
+```sh
 docker build -t fraud-detection-api .
+docker run --rm -p 8000:8000 -e FRAUD_THRESHOLD=0.5 fraud-detection-api
+```
 
-Run the Container
+The image packages the API and model. Load serialized artifacts only from trusted sources.
 
-docker run --rm -p 8000:8000 --name fraud-api fraud-detection-api
+## Deployment
 
-The API will be available at:
+The project was previously deployed on Render. The address in earlier documentation was misspelled, and a working hosted endpoint has not been confirmed. Use the local walkthrough until the deployment URL and current availability are verified. A free hosted instance may have a slower first response after inactivity.
 
-http://127.0.0.1:8000
+## Limitations and next work
 
-To configure the threshold when running the container:
+- Publish the training/evaluation workflow and dependency versions used to serialize the model.
+- Document leakage prevention, split strategy, precision-recall results, and threshold selection.
+- Validate threshold configuration at startup and add structured operational logging.
+- Measure latency and failure behaviour under a stated workload.
+- Evaluate calibration and distribution shift before considering real-world use.
 
-docker run --rm -p 8000:8000 --name fraud-api \
-  -e FRAUD_THRESHOLD=0.5 \
-  fraud-detection-api
+## License
 
-Limitations
-
-- Offline model metrics do not guarantee real-world performance.
-- Predictions depend on the quality and distribution of input data.
-- The decision threshold affects the trade-off between false positives and missed fraud.
-- The zero-valued example demonstrates API integration, not a representative real-world transaction.
-- This is a portfolio project, not a validated production financial decision system.
-- The free Render instance may spin down after inactivity, increasing the response time of the first subsequent request.
-
-Future Improvements
-
-Potential improvements include:
-
-- Production monitoring and structured logging.
-- Further model evaluation, including precision-recall analysis and threshold selection.
-- API performance and load testing.
-
-License
-
-No license has been specified yet. Check the repository for licensing information before reusing or distributing this project.
+No license file is specified. Choose licensing explicitly before reuse or distribution.
